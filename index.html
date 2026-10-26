@@ -3,205 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyber Packet Deluxe</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Cyber Packet: Pro Edition</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-
         * {
+            box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: manipulation;
         }
-
         body {
-            font-family: 'Tajawal', sans-serif;
-            background-color: #030712;
-            color: #f9fafb;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            background: #030712;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            width: 100vw;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #f8fafc;
+            touch-action: manipulation;
         }
-
-        .game-container {
+        #game-container {
             position: relative;
             width: 100%;
-            max-width: 420px;
-            height: 100%;
-            max-height: 750px;
+            max-width: 380px;
+            height: 100vh;
+            max-height: 660px;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
         }
-
         canvas {
-            background: linear-gradient(180deg, #090d16 0%, #050b14 100%);
-            border-radius: 20px;
+            background: linear-gradient(to bottom, #0b0f19, #111827);
             box-shadow: 0 0 35px rgba(56, 189, 248, 0.25);
+            border-radius: 20px;
+            border: 2px solid rgba(56, 189, 248, 0.3);
             width: 100%;
             height: 100%;
-            display: block;
         }
     </style>
 </head>
 <body>
-
-    <div class="game-container p-2 sm:p-4">
-        <canvas id="gameCanvas" width="360" height="640"></canvas>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="380" height="660"></canvas>
     </div>
 
     <script>
-        // --- Web Audio API Synthesizer (No External Files) ---
-        class SoundFX {
-            constructor() {
-                this.ctx = null;
-                this.muted = false;
-            }
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
 
-            init() {
-                if (!this.ctx) {
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    this.ctx = new AudioContext();
-                }
-                if (this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
-            }
-
-            playJump() {
-                if (!this.ctx || this.muted) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.15);
-            }
-
-            playCoin() {
-                if (!this.ctx || this.muted) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
-                osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08); // E5
-                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.2);
-            }
-
-            playShieldPickup() {
-                if (!this.ctx || this.muted) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.25);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.25);
-            }
-
-            playShieldBreak() {
-                if (!this.ctx || this.muted) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.2);
-                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.2);
-            }
-
-            playGameOver() {
-                if (!this.ctx || this.muted) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5);
-                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.5);
+        // --- نظام الأصوات (Web Audio API) ---
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
         }
 
-        // --- Game Setup ---
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        const audio = new SoundFX();
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
 
-        let gameState = "START"; // START, PLAYING, GAMEOVER
-        let speed = 4;
+                if (type === 'jump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(450, now + 0.12);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'doubleJump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(650, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'coin') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.setValueAtTime(780, now + 0.08);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'shield') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'hit') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        // --- إعدادات اللعبة ---
+        let gameState = "START";
+        let speed = 4.5;
         let score = 0;
         let coinsCollected = 0;
         let highScore = parseInt(localStorage.getItem("cyber_packet_highscore")) || 0;
         let frameCount = 0;
+        const groundY = 530;
 
-        // Player Specs
         let player = {
             x: 50,
-            y: 480,
+            y: groundY - 32,
             width: 32,
             height: 32,
             dy: 0,
-            jumpForce: -12,
+            jumpForce: -11.5,
             gravity: 0.65,
             grounded: false,
+            jumpsLeft: 2, // للقفز المزدوج
             color: "#38bdf8",
             shieldActive: false,
-            shieldTimer: 0,
-            maxShieldTime: 300 // 5 Seconds (60 FPS * 5)
+            shieldTimer: 0
         };
 
         let obstacles = [];
-        let coins = [];
-        let shields = [];
+        let items = [];
         let particles = [];
-        let backgroundNodes = [];
+        let trail = [];
 
-        // Generate background grid/nodes
-        for (let i = 0; i < 25; i++) {
-            backgroundNodes.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                size: Math.random() * 2 + 1,
-                alpha: Math.random() * 0.5 + 0.1,
-                speed: Math.random() * 0.5 + 0.2
-            });
-        }
+        // --- التحكم باللمس والماوس ---
+        window.addEventListener("touchstart", handleAction, { passive: false });
+        window.addEventListener("mousedown", handleAction);
 
-        // --- Touch & Mouse Event Handlers ---
-        window.addEventListener("touchstart", handleInteraction, { passive: false });
-        window.addEventListener("mousedown", handleInteraction);
-
-        function handleInteraction(e) {
+        function handleAction(e) {
             if (e.type === "touchstart") e.preventDefault();
-            audio.init();
+            initAudio();
 
             if (gameState === "START" || gameState === "GAMEOVER") {
                 resetGame();
@@ -209,72 +156,92 @@
                 return;
             }
 
-            if (gameState === "PLAYING" && player.grounded) {
+            // نظام القفز المزدوج
+            if (player.grounded) {
                 player.dy = player.jumpForce;
                 player.grounded = false;
-                audio.playJump();
-                createParticles(player.x + 16, player.y + 32, "#38bdf8", 10);
+                player.jumpsLeft = 1; // تبقي قفزة واحدة إضافية في الهواء
+                playSound('jump');
+                createParticles(player.x + 16, player.y + 32, "#38bdf8", 8);
+            } else if (player.jumpsLeft > 0) {
+                player.dy = player.jumpForce * 0.9; // القفزة الثانية
+                player.jumpsLeft = 0;
+                playSound('doubleJump');
+                createParticles(player.x + 16, player.y + 16, "#38bdf8", 12);
             }
         }
 
         function resetGame() {
-            player.y = 480;
+            player.y = groundY - 32;
             player.dy = 0;
+            player.grounded = true;
+            player.jumpsLeft = 2;
             player.shieldActive = false;
             player.shieldTimer = 0;
             obstacles = [];
-            coins = [];
-            shields = [];
+            items = [];
             particles = [];
+            trail = [];
             score = 0;
             coinsCollected = 0;
-            speed = 4.2;
+            speed = 4.5;
             frameCount = 0;
         }
 
-        function createParticles(x, y, color, count, speedMultiplier = 1) {
+        function createParticles(x, y, color, count) {
             for (let i = 0; i < count; i++) {
                 particles.push({
                     x: x,
                     y: y,
-                    vx: (Math.random() - 0.5) * 5 * speedMultiplier,
-                    vy: (Math.random() - 0.5) * 5 * speedMultiplier,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
                     size: Math.random() * 4 + 2,
                     color: color,
-                    life: Math.random() * 20 + 10
+                    life: 25
                 });
             }
         }
 
-        // --- Main Render & Game Loop ---
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Draw Background Motion
-            ctx.fillStyle = "#38bdf8";
-            backgroundNodes.forEach(node => {
-                node.x -= node.speed * (gameState === "PLAYING" ? speed * 0.3 : 1);
-                if (node.x < 0) node.x = canvas.width;
-                ctx.globalAlpha = node.alpha;
-                ctx.fillRect(node.x, node.y, node.size, node.size);
-            });
-            ctx.globalAlpha = 1.0;
+            // شبكة الخلفية
+            ctx.strokeStyle = "rgba(30, 41, 59, 0.5)";
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 30) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
 
-            // 2. Draw Ground Line (Grid Cyber Floor)
-            const groundY = 512;
+            // خط الأرضية
             ctx.strokeStyle = "#38bdf8";
             ctx.lineWidth = 3;
             ctx.shadowColor = "#38bdf8";
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(0, groundY);
             ctx.lineTo(canvas.width, groundY);
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // Handle States
             if (gameState === "START") {
-                renderStartScreen();
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.font = "bold 28px system-ui";
+                ctx.fillText("Cyber Packet", canvas.width / 2, 220);
+
+                ctx.font = "16px system-ui";
+                ctx.fillStyle = "#38bdf8";
+                ctx.fillText("انقر مرتين للقفز المزدوج!", canvas.width / 2, 270);
+                ctx.fillText("انقر للمس الشاشة وبدء اللعب", canvas.width / 2, 310);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#94a3b8";
+                ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 370);
+                ctx.textAlign = "left";
+
                 requestAnimationFrame(loop);
                 return;
             }
@@ -282,10 +249,13 @@
             if (gameState === "PLAYING") {
                 frameCount++;
 
-                // Speed progression
-                if (frameCount % 240 === 0) speed += 0.25;
+                if (frameCount % 250 === 0) speed += 0.3;
 
-                // Player Physics
+                if (player.shieldActive) {
+                    player.shieldTimer--;
+                    if (player.shieldTimer <= 0) player.shieldActive = false;
+                }
+
                 player.dy += player.gravity;
                 player.y += player.dy;
 
@@ -293,64 +263,52 @@
                     player.y = groundY - player.height;
                     player.dy = 0;
                     player.grounded = true;
+                    player.jumpsLeft = 2;
                 }
 
-                // Shield Timer Logic
-                if (player.shieldActive) {
-                    player.shieldTimer--;
-                    if (player.shieldTimer <= 0) {
-                        player.shieldActive = false;
-                        audio.playShieldBreak();
-                        createParticles(player.x + 16, player.y + 16, "#3b82f6", 15);
-                    }
-                }
-
-                // Spawn Particles Trail for Player
+                // ذيل الحركة
                 if (frameCount % 3 === 0) {
-                    particles.push({
-                        x: player.x,
-                        y: player.y + Math.random() * player.height,
-                        vx: -speed * 0.5,
-                        vy: (Math.random() - 0.5) * 1,
-                        size: Math.random() * 3 + 1,
-                        color: player.shieldActive ? "#60a5fa" : "#38bdf8",
-                        life: 15
-                    });
+                    trail.push({ x: player.x, y: player.y, alpha: 0.6 });
                 }
 
-                // Spawning Spawns (Obstacles, Coins, Shields)
-                // Obstacles (Firewalls)
-                if (frameCount % Math.max(50, 110 - Math.floor(speed * 4)) === 0) {
-                    let h = Math.random() * 45 + 35;
+                for (let i = trail.length - 1; i >= 0; i--) {
+                    let t = trail[i];
+                    t.alpha -= 0.04;
+                    if (t.alpha <= 0) {
+                        trail.splice(i, 1);
+                        continue;
+                    }
+                    ctx.fillStyle = player.shieldActive ? `rgba(99, 102, 241, ${t.alpha})` : `rgba(56, 189, 248, ${t.alpha})`;
+                    ctx.fillRect(t.x, t.y, player.width, player.height);
+                }
+
+                // توليد العوائق (أرضية وطائرة)
+                if (frameCount % Math.max(50, 100 - Math.floor(speed * 4)) === 0) {
+                    let isFlying = Math.random() < 0.3; // 30% عائق طائرة
+                    let h = isFlying ? 25 : (Math.random() * 45 + 30);
+                    let yPos = isFlying ? groundY - 95 : groundY - h;
                     obstacles.push({
                         x: canvas.width,
-                        y: groundY - h,
-                        width: 24,
+                        y: yPos,
+                        width: 26,
                         height: h,
-                        color: "#ef4444"
+                        color: isFlying ? "#a855f7" : "#f43f5e", // الطائرة باللون البنفسجي
+                        flying: isFlying
                     });
                 }
 
-                // Data Coins (Green Orbs)
-                if (frameCount % 130 === 0) {
-                    coins.push({
+                // توليد العناصر
+                if (frameCount % 180 === 0) {
+                    let isShield = Math.random() < 0.25;
+                    items.push({
                         x: canvas.width,
-                        y: Math.random() * 120 + 330,
-                        size: 10,
-                        pulse: 0
+                        y: Math.random() * 120 + 340,
+                        type: isShield ? "SHIELD" : "COIN",
+                        size: isShield ? 12 : 9
                     });
                 }
 
-                // Shield Power-up (Blue Orb)
-                if (frameCount % 450 === 0 && !player.shieldActive) {
-                    shields.push({
-                        x: canvas.width,
-                        y: Math.random() * 100 + 320,
-                        size: 12
-                    });
-                }
-
-                // Render & Update Particles
+                // تحديث الجسيمات
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx;
@@ -361,75 +319,11 @@
                     if (p.life <= 0) particles.splice(i, 1);
                 }
 
-                // Render & Update Shields
-                for (let i = shields.length - 1; i >= 0; i--) {
-                    let s = shields[i];
-                    s.x -= speed;
-
-                    // Collision with player
-                    if (
-                        player.x < s.x + s.size &&
-                        player.x + player.width > s.x - s.size &&
-                        player.y < s.y + s.size &&
-                        player.y + player.height > s.y - s.size
-                    ) {
-                        player.shieldActive = true;
-                        player.shieldTimer = player.maxShieldTime;
-                        audio.playShieldPickup();
-                        createParticles(s.x, s.y, "#3b82f6", 20, 1.5);
-                        shields.splice(i, 1);
-                        continue;
-                    }
-
-                    ctx.fillStyle = "#3b82f6";
-                    ctx.shadowColor = "#60a5fa";
-                    ctx.shadowBlur = 15;
-                    ctx.beginPath();
-                    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-
-                    if (s.x < -20) shields.splice(i, 1);
-                }
-
-                // Render & Update Coins
-                for (let i = coins.length - 1; i >= 0; i--) {
-                    let c = coins[i];
-                    c.x -= speed;
-                    c.pulse += 0.08;
-
-                    // Collision with player
-                    if (
-                        player.x < c.x + c.size &&
-                        player.x + player.width > c.x - c.size &&
-                        player.y < c.y + c.size &&
-                        player.y + player.height > c.y - c.size
-                    ) {
-                        coinsCollected++;
-                        audio.playCoin();
-                        createParticles(c.x, c.y, "#10b981", 12);
-                        coins.splice(i, 1);
-                        continue;
-                    }
-
-                    let radius = c.size + Math.sin(c.pulse) * 2;
-                    ctx.fillStyle = "#10b981";
-                    ctx.shadowColor = "#34d399";
-                    ctx.shadowBlur = 10;
-                    ctx.beginPath();
-                    ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-
-                    if (c.x < -20) coins.splice(i, 1);
-                }
-
-                // Render & Update Obstacles
+                // تحريك ورسم العوائق
                 for (let i = obstacles.length - 1; i >= 0; i--) {
                     let obs = obstacles[i];
                     obs.x -= speed;
 
-                    // Collision check
                     if (
                         player.x < obs.x + obs.width &&
                         player.x + player.width > obs.x &&
@@ -437,19 +331,17 @@
                         player.y + player.height > obs.y
                     ) {
                         if (player.shieldActive) {
-                            // Shield saves the player!
                             player.shieldActive = false;
                             player.shieldTimer = 0;
-                            audio.playShieldBreak();
-                            createParticles(obs.x + obs.width / 2, obs.y + obs.height / 2, "#ef4444", 20, 2);
+                            playSound('hit');
+                            createParticles(obs.x + 13, obs.y + 15, "#6366f1", 15);
                             obstacles.splice(i, 1);
                             continue;
                         } else {
-                            // Game Over
-                            audio.playGameOver();
-                            createParticles(player.x + 16, player.y + 16, "#ef4444", 30, 2);
+                            playSound('hit');
+                            createParticles(player.x + 16, player.y + 16, "#f43f5e", 25);
                             gameState = "GAMEOVER";
-                            let finalScore = score + (coinsCollected * 5);
+                            let finalScore = score + (coinsCollected * 2);
                             if (finalScore > highScore) {
                                 highScore = finalScore;
                                 localStorage.setItem("cyber_packet_highscore", highScore);
@@ -457,142 +349,119 @@
                         }
                     }
 
-                    // Draw Firewall
                     ctx.fillStyle = obs.color;
-                    ctx.shadowColor = "#f87171";
-                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = obs.color;
+                    ctx.shadowBlur = 10;
                     ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
                     ctx.shadowBlur = 0;
 
                     if (obs.x + obs.width < 0) {
                         obstacles.splice(i, 1);
-                        score += 1;
+                        score++;
                     }
                 }
 
-                // Draw Player Body
+                // تحريك العناصر
+                for (let i = items.length - 1; i >= 0; i--) {
+                    let it = items[i];
+                    it.x -= speed;
+
+                    if (
+                        player.x < it.x + it.size &&
+                        player.x + player.width > it.x - it.size &&
+                        player.y < it.y + it.size &&
+                        player.y + player.height > it.y - it.size
+                    ) {
+                        if (it.type === "COIN") {
+                            coinsCollected++;
+                            playSound('coin');
+                            createParticles(it.x, it.y, "#10b981", 10);
+                        } else if (it.type === "SHIELD") {
+                            player.shieldActive = true;
+                            player.shieldTimer = 300;
+                            playSound('shield');
+                            createParticles(it.x, it.y, "#6366f1", 15);
+                        }
+                        items.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.beginPath();
+                    if (it.type === "COIN") {
+                        ctx.fillStyle = "#10b981";
+                        ctx.shadowColor = "#10b981";
+                        ctx.shadowBlur = 8;
+                        ctx.arc(it.x, it.y, it.size, 0, Math.PI * 2);
+                    } else {
+                        ctx.fillStyle = "#6366f1";
+                        ctx.shadowColor = "#6366f1";
+                        ctx.shadowBlur = 12;
+                        ctx.arc(it.x, it.y, it.size, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    if (it.x < 0) items.splice(i, 1);
+                }
+
+                // رسم اللاعب
                 ctx.fillStyle = player.color;
                 ctx.shadowColor = player.color;
-                ctx.shadowBlur = 14;
+                ctx.shadowBlur = 12;
                 ctx.fillRect(player.x, player.y, player.width, player.height);
                 ctx.shadowBlur = 0;
 
-                // Draw Shield Barrier Aura if active
                 if (player.shieldActive) {
-                    ctx.strokeStyle = "#60a5fa";
+                    ctx.strokeStyle = "#6366f1";
                     ctx.lineWidth = 3;
-                    ctx.shadowColor = "#93c5fd";
+                    ctx.shadowColor = "#6366f1";
                     ctx.shadowBlur = 15;
                     ctx.beginPath();
-                    ctx.arc(player.x + 16, player.y + 16, 26, 0, Math.PI * 2);
+                    ctx.arc(player.x + 16, player.y + 16, 24, 0, Math.PI * 2);
                     ctx.stroke();
                     ctx.shadowBlur = 0;
                 }
 
-                // Render Game HUD
-                renderHUD();
+                // معلومات الواجهة
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 15px system-ui";
+                ctx.fillText("النقاط: " + score, 20, 35);
+
+                ctx.fillStyle = "#10b981";
+                ctx.fillText("بيانات: " + coinsCollected, 20, 60);
+
+                if (player.shieldActive) {
+                    ctx.fillStyle = "#6366f1";
+                    ctx.fillText("الدرع: " + Math.ceil(player.shieldTimer / 60) + "s", 20, 85);
+                }
             }
 
             if (gameState === "GAMEOVER") {
-                renderGameOverScreen();
+                ctx.fillStyle = "rgba(11, 15, 25, 0.88)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 26px system-ui";
+                ctx.textAlign = "center";
+                ctx.fillText("انتهت اللعبة!", canvas.width / 2, 230);
+
+                let totalScore = score + (coinsCollected * 2);
+                ctx.font = "18px system-ui";
+                ctx.fillText("النتيجة: " + totalScore, canvas.width / 2, 280);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#10b981";
+                ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 320);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#38bdf8";
+                ctx.fillText("انقر للإعادة", canvas.width / 2, 370);
+                ctx.textAlign = "left";
             }
 
             requestAnimationFrame(loop);
         }
 
-        // --- Interface Screens ---
-        function renderHUD() {
-            // Score & Coins
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 16px Tajawal, sans-serif";
-            ctx.textAlign = "right";
-            ctx.fillText("النقاط: " + score, canvas.width - 20, 40);
-
-            ctx.fillStyle = "#34d399";
-            ctx.fillText("البيانات: " + coinsCollected, canvas.width - 20, 65);
-
-            // Shield Bar Display
-            if (player.shieldActive) {
-                const barWidth = 100;
-                const progress = (player.shieldTimer / player.maxShieldTime) * barWidth;
-                
-                ctx.fillStyle = "rgba(15, 23, 42, 0.6)";
-                ctx.fillRect(20, 30, barWidth, 10);
-                
-                ctx.fillStyle = "#60a5fa";
-                ctx.shadowColor = "#93c5fd";
-                ctx.shadowBlur = 8;
-                ctx.fillRect(20, 30, progress, 10);
-                ctx.shadowBlur = 0;
-
-                ctx.fillStyle = "#93c5fd";
-                ctx.font = "bold 12px Tajawal";
-                ctx.textAlign = "left";
-                ctx.fillText("الدرع نشط", 20, 24);
-            }
-        }
-
-        function renderStartScreen() {
-            ctx.fillStyle = "#ffffff";
-            ctx.textAlign = "center";
-            ctx.font = "bold 30px Tajawal, sans-serif";
-            ctx.fillText("Cyber Packet", canvas.width / 2, 210);
-
-            ctx.fillStyle = "#38bdf8";
-            ctx.font = "bold 18px Tajawal";
-            ctx.fillText("Deluxe Edition", canvas.width / 2, 240);
-
-            // Highscore
-            ctx.fillStyle = "#fbbf24";
-            ctx.font = "16px Tajawal";
-            ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 280);
-
-            // Instructions Box
-            ctx.fillStyle = "rgba(30, 41, 59, 0.8)";
-            ctx.fillRect(40, 330, canvas.width - 80, 140);
-            
-            ctx.fillStyle = "#f3f4f6";
-            ctx.font = "14px Tajawal";
-            ctx.fillText("• المس الشاشة للقفز وتفادي الجدران", canvas.width / 2, 365);
-            ctx.fillText("• اجمع البيانات الخضراء لزيادة النقاط", canvas.width / 2, 395);
-            ctx.fillText("• احصل على الكبسولة الزرقاء لتفعيل الدرع", canvas.width / 2, 425);
-
-            ctx.fillStyle = "#38bdf8";
-            ctx.font = "bold 18px Tajawal";
-            ctx.fillText("المس الشاشة للبدء!", canvas.width / 2, 530);
-        }
-
-        function renderGameOverScreen() {
-            ctx.fillStyle = "rgba(3, 7, 18, 0.88)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = "#ef4444";
-            ctx.font = "bold 32px Tajawal, sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText("انتهت اللعبة!", canvas.width / 2, 210);
-
-            let totalFinal = score + (coinsCollected * 5);
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "20px Tajawal";
-            ctx.fillText("المجموع: " + totalFinal, canvas.width / 2, 270);
-
-            ctx.fillStyle = "#fbbf24";
-            ctx.font = "16px Tajawal";
-            ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 310);
-
-            // Retry Button
-            ctx.fillStyle = "#0284c7";
-            ctx.shadowColor = "#38bdf8";
-            ctx.shadowBlur = 15;
-            ctx.fillRect(canvas.width / 2 - 80, 370, 160, 48);
-            ctx.shadowBlur = 0;
-
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 18px Tajawal";
-            ctx.fillText("إعادة المحاولة", canvas.width / 2, 400);
-        }
-
-        // Start Loop
         loop();
     </script>
 </body>
