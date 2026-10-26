@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Packet: Pro Edition</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #030712;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #f8fafc;
+            touch-action: manipulation;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 380px;
+            height: 100vh;
+            max-height: 660px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #0b0f19, #111827);
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.25);
+            border-radius: 20px;
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="380" height="660"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // --- نظام الأصوات (Web Audio API) ---
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'jump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(450, now + 0.12);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'doubleJump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(650, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'coin') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.setValueAtTime(780, now + 0.08);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'shield') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'hit') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        // --- إعدادات اللعبة ---
+        let gameState = "START";
+        let speed = 4.5;
+        let score = 0;
+        let coinsCollected = 0;
+        let highScore = parseInt(localStorage.getItem("cyber_packet_highscore")) || 0;
+        let frameCount = 0;
+        const groundY = 530;
+
+        let player = {
+            x: 50,
+            y: groundY - 32,
+            width: 32,
+            height: 32,
+            dy: 0,
+            jumpForce: -11.5,
+            gravity: 0.65,
+            grounded: false,
+            jumpsLeft: 2, // للقفز المزدوج
+            color: "#38bdf8",
+            shieldActive: false,
+            shieldTimer: 0
+        };
+
+        let obstacles = [];
+        let items = [];
+        let particles = [];
+        let trail = [];
+
+        // --- التحكم باللمس والماوس ---
+        window.addEventListener("touchstart", handleAction, { passive: false });
+        window.addEventListener("mousedown", handleAction);
+
+        function handleAction(e) {
+            if (e.type === "touchstart") e.preventDefault();
+            initAudio();
+
+            if (gameState === "START" || gameState === "GAMEOVER") {
+                resetGame();
+                gameState = "PLAYING";
+                return;
+            }
+
+            // نظام القفز المزدوج
+            if (player.grounded) {
+                player.dy = player.jumpForce;
+                player.grounded = false;
+                player.jumpsLeft = 1; // تبقي قفزة واحدة إضافية في الهواء
+                playSound('jump');
+                createParticles(player.x + 16, player.y + 32, "#38bdf8", 8);
+            } else if (player.jumpsLeft > 0) {
+                player.dy = player.jumpForce * 0.9; // القفزة الثانية
+                player.jumpsLeft = 0;
+                playSound('doubleJump');
+                createParticles(player.x + 16, player.y + 16, "#38bdf8", 12);
+            }
+        }
+
+        function resetGame() {
+            player.y = groundY - 32;
+            player.dy = 0;
+            player.grounded = true;
+            player.jumpsLeft = 2;
+            player.shieldActive = false;
+            player.shieldTimer = 0;
+            obstacles = [];
+            items = [];
+            particles = [];
+            trail = [];
+            score = 0;
+            coinsCollected = 0;
+            speed = 4.5;
+            frameCount = 0;
+        }
+
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    size: Math.random() * 4 + 2,
+                    color: color,
+                    life: 25
+                });
+            }
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // شبكة الخلفية
+            ctx.strokeStyle = "rgba(30, 41, 59, 0.5)";
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 30) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // خط الأرضية
+            ctx.strokeStyle = "#38bdf8";
+            ctx.lineWidth = 3;
+            ctx.shadowColor = "#38bdf8";
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(canvas.width, groundY);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            if (gameState === "START") {
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.font = "bold 28px system-ui";
+                ctx.fillText("Cyber Packet", canvas.width / 2, 220);
+
+                ctx.font = "16px system-ui";
+                ctx.fillStyle = "#38bdf8";
+                ctx.fillText("انقر مرتين للقفز المزدوج!", canvas.width / 2, 270);
+                ctx.fillText("انقر للمس الشاشة وبدء اللعب", canvas.width / 2, 310);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#94a3b8";
+                ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 370);
+                ctx.textAlign = "left";
+
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            if (gameState === "PLAYING") {
+                frameCount++;
+
+                if (frameCount % 250 === 0) speed += 0.3;
+
+                if (player.shieldActive) {
+                    player.shieldTimer--;
+                    if (player.shieldTimer <= 0) player.shieldActive = false;
+                }
+
+                player.dy += player.gravity;
+                player.y += player.dy;
+
+                if (player.y >= groundY - player.height) {
+                    player.y = groundY - player.height;
+                    player.dy = 0;
+                    player.grounded = true;
+                    player.jumpsLeft = 2;
+                }
+
+                // ذيل الحركة
+                if (frameCount % 3 === 0) {
+                    trail.push({ x: player.x, y: player.y, alpha: 0.6 });
+                }
+
+                for (let i = trail.length - 1; i >= 0; i--) {
+                    let t = trail[i];
+                    t.alpha -= 0.04;
+                    if (t.alpha <= 0) {
+                        trail.splice(i, 1);
+                        continue;
+                    }
+                    ctx.fillStyle = player.shieldActive ? `rgba(99, 102, 241, ${t.alpha})` : `rgba(56, 189, 248, ${t.alpha})`;
+                    ctx.fillRect(t.x, t.y, player.width, player.height);
+                }
+
+                // توليد العوائق (أرضية وطائرة)
+                if (frameCount % Math.max(50, 100 - Math.floor(speed * 4)) === 0) {
+                    let isFlying = Math.random() < 0.3; // 30% عائق طائرة
+                    let h = isFlying ? 25 : (Math.random() * 45 + 30);
+                    let yPos = isFlying ? groundY - 95 : groundY - h;
+                    obstacles.push({
+                        x: canvas.width,
+                        y: yPos,
+                        width: 26,
+                        height: h,
+                        color: isFlying ? "#a855f7" : "#f43f5e", // الطائرة باللون البنفسجي
+                        flying: isFlying
+                    });
+                }
+
+                // توليد العناصر
+                if (frameCount % 180 === 0) {
+                    let isShield = Math.random() < 0.25;
+                    items.push({
+                        x: canvas.width,
+                        y: Math.random() * 120 + 340,
+                        type: isShield ? "SHIELD" : "COIN",
+                        size: isShield ? 12 : 9
+                    });
+                }
+
+                // تحديث الجسيمات
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    let p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life--;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+
+                // تحريك ورسم العوائق
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    let obs = obstacles[i];
+                    obs.x -= speed;
+
+                    if (
+                        player.x < obs.x + obs.width &&
+                        player.x + player.width > obs.x &&
+                        player.y < obs.y + obs.height &&
+                        player.y + player.height > obs.y
+                    ) {
+                        if (player.shieldActive) {
+                            player.shieldActive = false;
+                            player.shieldTimer = 0;
+                            playSound('hit');
+                            createParticles(obs.x + 13, obs.y + 15, "#6366f1", 15);
+                            obstacles.splice(i, 1);
+                            continue;
+                        } else {
+                            playSound('hit');
+                            createParticles(player.x + 16, player.y + 16, "#f43f5e", 25);
+                            gameState = "GAMEOVER";
+                            let finalScore = score + (coinsCollected * 2);
+                            if (finalScore > highScore) {
+                                highScore = finalScore;
+                                localStorage.setItem("cyber_packet_highscore", highScore);
+                            }
+                        }
+                    }
+
+                    ctx.fillStyle = obs.color;
+                    ctx.shadowColor = obs.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.shadowBlur = 0;
+
+                    if (obs.x + obs.width < 0) {
+                        obstacles.splice(i, 1);
+                        score++;
+                    }
+                }
+
+                // تحريك العناصر
+                for (let i = items.length - 1; i >= 0; i--) {
+                    let it = items[i];
+                    it.x -= speed;
+
+                    if (
+                        player.x < it.x + it.size &&
+                        player.x + player.width > it.x - it.size &&
+                        player.y < it.y + it.size &&
+                        player.y + player.height > it.y - it.size
+                    ) {
+                        if (it.type === "COIN") {
+                            coinsCollected++;
+                            playSound('coin');
+                            createParticles(it.x, it.y, "#10b981", 10);
+                        } else if (it.type === "SHIELD") {
+                            player.shieldActive = true;
+                            player.shieldTimer = 300;
+                            playSound('shield');
+                            createParticles(it.x, it.y, "#6366f1", 15);
+                        }
+                        items.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.beginPath();
+                    if (it.type === "COIN") {
+                        ctx.fillStyle = "#10b981";
+                        ctx.shadowColor = "#10b981";
+                        ctx.shadowBlur = 8;
+                        ctx.arc(it.x, it.y, it.size, 0, Math.PI * 2);
+                    } else {
+                        ctx.fillStyle = "#6366f1";
+                        ctx.shadowColor = "#6366f1";
+                        ctx.shadowBlur = 12;
+                        ctx.arc(it.x, it.y, it.size, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    if (it.x < 0) items.splice(i, 1);
+                }
+
+                // رسم اللاعب
+                ctx.fillStyle = player.color;
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 12;
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+                ctx.shadowBlur = 0;
+
+                if (player.shieldActive) {
+                    ctx.strokeStyle = "#6366f1";
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = "#6366f1";
+                    ctx.shadowBlur = 15;
+                    ctx.beginPath();
+                    ctx.arc(player.x + 16, player.y + 16, 24, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+
+                // معلومات الواجهة
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 15px system-ui";
+                ctx.fillText("النقاط: " + score, 20, 35);
+
+                ctx.fillStyle = "#10b981";
+                ctx.fillText("بيانات: " + coinsCollected, 20, 60);
+
+                if (player.shieldActive) {
+                    ctx.fillStyle = "#6366f1";
+                    ctx.fillText("الدرع: " + Math.ceil(player.shieldTimer / 60) + "s", 20, 85);
+                }
+            }
+
+            if (gameState === "GAMEOVER") {
+                ctx.fillStyle = "rgba(11, 15, 25, 0.88)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 26px system-ui";
+                ctx.textAlign = "center";
+                ctx.fillText("انتهت اللعبة!", canvas.width / 2, 230);
+
+                let totalScore = score + (coinsCollected * 2);
+                ctx.font = "18px system-ui";
+                ctx.fillText("النتيجة: " + totalScore, canvas.width / 2, 280);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#10b981";
+                ctx.fillText("أعلى نتيجة: " + highScore, canvas.width / 2, 320);
+
+                ctx.font = "14px system-ui";
+                ctx.fillStyle = "#38bdf8";
+                ctx.fillText("انقر للإعادة", canvas.width / 2, 370);
+                ctx.textAlign = "left";
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
